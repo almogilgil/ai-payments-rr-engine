@@ -1,11 +1,10 @@
 """
 AI extraction for external/bank PDFs and screenshots.
-Uses pdfplumber for text, then Anthropic claude to parse into normalized schema.
+Uses pdfplumber for text, then Google Gemini to parse into normalized schema.
 Never invents values — low confidence if a figure isn't clearly present.
 """
 import json
 import os
-import anthropic
 
 try:
     import pdfplumber
@@ -13,8 +12,14 @@ try:
 except ImportError:
     HAS_PDFPLUMBER = False
 
+try:
+    import google.generativeai as genai
+    HAS_GENAI = True
+except ImportError:
+    HAS_GENAI = False
 
-SYSTEM_PROMPT = """You are a financial data extractor for payment processing statements.
+
+PROMPT = """You are a financial data extractor for payment processing statements.
 Extract ONLY the monthly Sales, Refunds (returns/credits), and Chargebacks totals.
 Return ONLY a JSON object. Do not add commentary.
 
@@ -48,7 +53,6 @@ def _extract_text(content: bytes, filename: str) -> str:
         import io
         with pdfplumber.open(io.BytesIO(content)) as pdf:
             return "\n".join(page.extract_text() or "" for page in pdf.pages)
-    # fallback: try decoding as text (for screenshots or CSV fallback)
     return content.decode("utf-8", errors="replace")
 
 
@@ -57,11 +61,17 @@ def extract_pdf_ai(files: list[dict]) -> dict:
     files: [{"filename": str, "content": bytes}]
     Returns: {"table": {month: {sales, refunds, chargebacks}}, "confidence": [...]}
     """
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    api_key = os.environ.get("GOOGLE_AI_API_KEY")
     if not api_key:
-        raise EnvironmentError("ANTHROPIC_API_KEY not set; cannot perform AI extraction")
+        raise EnvironmentError("GOOGLE_AI_API_KEY not set; cannot perform AI extraction")
+    if not HAS_GENAI:
+        raise EnvironmentError("google-generativeai not installed")
 
-    client = anthropic.Anthropic(api_key=api_key)
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel(
+        model_name="gemini-pro-latest",
+        generation_config={"response_mime_type": "application/json"},
+    )
 
     all_text = []
     for f in files:
@@ -69,16 +79,11 @@ def extract_pdf_ai(files: list[dict]) -> dict:
         all_text.append(f"=== {f['filename']} ===\n{text}")
 
     combined = "\n\n".join(all_text)
-    user_msg = f"Extract monthly Sales, Refunds, and Chargebacks from this payment statement:\n\n{combined}"
+    full_prompt = f"{PROMPT}\n\nExtract monthly Sales, Refunds, and Chargebacks from this payment statement:\n\n{combined}"
 
-    response = client.messages.create(
-        model="claude-opus-4-8",
-        max_tokens=2000,
-        system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": user_msg}],
-    )
+    response = model.generate_content(full_prompt)
+    raw = response.text.strip()
 
-    raw = response.content[0].text.strip()
     # Strip markdown code fences if present
     if raw.startswith("```"):
         raw = raw.split("```")[1]
