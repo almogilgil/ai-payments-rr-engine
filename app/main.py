@@ -108,6 +108,17 @@ def assess(req: AssessRequest):
         qa_lines.append(
             f"| {mr['label']} | ${mr['sales']:,.2f} | ${mr['refunds']:,.2f} | ${mr['chargebacks']:,.2f} |"
         )
+    # For AI-extracted statements, append per-figure confidence + source snippet
+    # so the reviewer can verify each number against the document.
+    if extraction["confidence"]:
+        qa_lines.append("")
+        qa_lines.append("| Month | Field | Confidence | Source snippet |")
+        qa_lines.append("|---|---|---|---|")
+        for c in extraction["confidence"]:
+            snippet = str(c.get("snippet", "")).replace("|", "\\|").replace("\n", " ")
+            qa_lines.append(
+                f"| {c['month']} | {c['field']} | {c['score']:.2f} | {snippet} |"
+            )
     qa_table = "\n".join(qa_lines)
 
     # Workbook

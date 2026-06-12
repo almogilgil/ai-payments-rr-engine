@@ -23,7 +23,24 @@ PROMPT = """You are a financial data extractor for payment processing statements
 Extract ONLY the monthly Sales, Refunds (returns/credits), and Chargebacks totals.
 Return ONLY a JSON object. Do not add commentary.
 
+Processor statements vary (LynnBrook/CardPointe/First Data, Yapstone, Elavon, Sola,
+bank statements, etc.). The figures you need typically appear as:
+- Sales: the statement's GROSS sales total — labels like "Amount of Sales",
+  "Sales Volume", "Total Sales", "Gross Sales" (usually in a Plan Summary /
+  Summary section, the total/** row, NOT per-card-type subtotals).
+- Refunds: labels like "Amount of Credits", "Credits", "Returns", "Refunds".
+  Use the gross credit/refund dollar total.
+- Chargebacks: a "Chargebacks" section or "Chargeback Totals" row — use the
+  disputed dollar amount. Do NOT use chargeback FEES (e.g. a $25 per-item fee
+  under Transaction/Service Fees) — fees are not the chargeback volume.
+  If the statement has no chargeback section at all, chargebacks = 0 with
+  confidence 1.0 (absence of the section means zero chargebacks).
+- The month: the statement's processing period — labels like "Processing Month",
+  "Statement Period", "Month Ending". A single statement is usually ONE month.
+
 Rules:
+- "label" MUST be the statement's period in "YYYY-MM" format (e.g. processing
+  month 10-24 → "2024-10"). NEVER use today's date.
 - Never invent or estimate a value. If a figure is not clearly present, set it to null and confidence to 0.0.
 - Prefer returning fewer months over guessing.
 - Include a snippet (the exact text you read the number from) for QA purposes.
@@ -46,6 +63,27 @@ Output schema (strict):
     }
   ]
 }"""
+
+
+def _normalize_label(label: str) -> str:
+    """Coerce a month label to 'YYYY-MM'. Returns '' if unparseable."""
+    import re
+    from datetime import datetime
+    label = str(label).strip()
+    if re.fullmatch(r"\d{4}-\d{2}", label):
+        return label
+    # "10-24" / "10/24" (MM-YY)
+    m = re.fullmatch(r"(\d{1,2})[-/](\d{2})", label)
+    if m:
+        return f"20{m.group(2)}-{int(m.group(1)):02d}"
+    # "October 2024" / "Oct 2024"
+    for fmt in ("%B %Y", "%b %Y", "%m/%Y", "%m-%Y"):
+        try:
+            dt = datetime.strptime(label, fmt)
+            return f"{dt.year:04d}-{dt.month:02d}"
+        except ValueError:
+            pass
+    return ""
 
 
 def _extract_text(content: bytes, filename: str) -> str:
@@ -96,7 +134,7 @@ def extract_pdf_ai(files: list[dict]) -> dict:
     confidence = []
 
     for m in parsed.get("months", []):
-        label = m.get("label", "")
+        label = _normalize_label(m.get("label", ""))
         if not label:
             continue
         table[label] = {

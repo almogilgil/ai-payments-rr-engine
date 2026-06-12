@@ -128,16 +128,25 @@ def dispatch(statements: list[dict], test_mode: bool = False, ref_date: datetime
             table = result["table"]
             confidence = result.get("confidence", [])
             source_type = "pdf_ai"
+            if not table:
+                raise ValueError(
+                    "AI extraction found no monthly figures in the PDF statement(s); "
+                    "refusing to return zeros. Submit a clearer statement or use a CSV export."
+                )
             if any(c["score"] < CONFIDENCE_THRESHOLD for c in confidence):
                 needs_review = True
         else:
             raise ValueError("No recognizable statement files provided")
 
-    # Use data's latest date as ref if no explicit ref_date provided
-    effective_ref = ref_date or data_latest_date or datetime.utcnow()
-
-    # Determine the trailing 3 months window
-    window_months = _trailing_months(effective_ref, 3)
+    if source_type == "pdf_ai":
+        # A statement's period IS the window: use the extracted months themselves
+        # (latest 3). Anchoring to today's date would zero out historical
+        # statements — e.g. an Oct 2024 statement assessed in June 2026.
+        window_months = sorted(table.keys())[-3:]
+    else:
+        # Use data's latest date as ref if no explicit ref_date provided
+        effective_ref = ref_date or data_latest_date or datetime.utcnow()
+        window_months = _trailing_months(effective_ref, 3)
 
     # Filter table to window months only
     filtered = {m: table.get(m, {"sales": 0.0, "refunds": 0.0, "chargebacks": 0.0})
