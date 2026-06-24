@@ -12,7 +12,6 @@ from datetime import datetime, timedelta
 from .guestypay import extract_guestypay
 from .stripe import extract_stripe
 from .pdf_ai import extract_pdf_ai
-from .guesty_xlsx import extract_guesty_xlsx
 
 CONFIDENCE_THRESHOLD = float(os.environ.get("CONFIDENCE_THRESHOLD", "0.85"))
 
@@ -42,11 +41,6 @@ def _is_stripe_disputes(content: bytes, filename: str) -> bool:
         return False
 
 
-def _is_guesty_xlsx(content: bytes, filename: str) -> bool:
-    fn = filename.lower()
-    return fn.endswith(".xlsx") or fn.endswith(".xls")
-
-
 def _trailing_months(ref_date: datetime, n_months: int = 3) -> list[str]:
     """Return list of 'YYYY-MM' for the n calendar months ending with ref_date's month."""
     months = []
@@ -67,7 +61,6 @@ def dispatch(statements: list[dict], test_mode: bool = False, ref_date: datetime
     """
     # Categorize files
     guestypay_files = []
-    xlsx_files = []
     stripe_payment_files = []
     stripe_dispute_files = []
     pdf_files = []
@@ -77,9 +70,7 @@ def dispatch(statements: list[dict], test_mode: bool = False, ref_date: datetime
         content = s["content"]
         mime = s.get("mime", "")
 
-        if _is_guesty_xlsx(content, fname) or "spreadsheetml" in mime:
-            xlsx_files.append(s)
-        elif fname.endswith(".pdf") or mime == "application/pdf":
+        if fname.endswith(".pdf") or mime == "application/pdf":
             pdf_files.append(s)
         elif fname.endswith(".csv") or "csv" in mime:
             if _is_guestypay(content, fname):
@@ -100,21 +91,7 @@ def dispatch(statements: list[dict], test_mode: bool = False, ref_date: datetime
     with tempfile.TemporaryDirectory() as tmpdir:
         data_latest_date = None
 
-        if xlsx_files:
-            path = os.path.join(tmpdir, "guesty_activity.xlsx")
-            with open(path, "wb") as f:
-                f.write(xlsx_files[0]["content"])
-            result = extract_guesty_xlsx(path)
-            table = result["table"]
-            data_latest_date = result.get("latest_date")
-            source_type = "guesty_xlsx"
-            # Deterministic spreadsheet extraction; real zeros are valid.
-            # Flag for review only if no CHB and no refunds were found at all.
-            if not any(v["chargebacks"] or v["refunds"] for v in table.values()):
-                needs_review = True
-                chargebacks_note = ("No chargebacks or refunds present in the "
-                                    "Transaction Activity export; verify against another source.")
-        elif guestypay_files:
+        if guestypay_files:
             # Write to temp file and extract
             path = os.path.join(tmpdir, "guestypay.csv")
             with open(path, "wb") as f:
