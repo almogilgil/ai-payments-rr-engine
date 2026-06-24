@@ -49,12 +49,14 @@ def _pick_data_sheet(wb):
 def _row_year_month(row_dict):
     """Derive (year, month) from Date column; fall back to Month col + Date's year."""
     dt = None
-    raw_date = row_dict.get("Date")
+    raw_date = row_dict.get("Created date (UTC)")
+    if raw_date is None:
+        raw_date = row_dict.get("Date")
     if raw_date is not None:
         if isinstance(raw_date, datetime):
             dt = raw_date
         else:
-            for fmt in ("%b %d, %Y", "%Y-%m-%d", "%m/%d/%Y", "%m/%d/%y", "%d/%m/%Y"):
+            for fmt in ("%b %d, %Y", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%m/%d/%Y", "%m/%d/%y", "%d/%m/%Y"):
                 try:
                     dt = datetime.strptime(str(raw_date).strip(), fmt)
                     break
@@ -104,13 +106,19 @@ def extract_guesty_xlsx(path: str) -> dict:
             latest_date = dt
         mk = _month_key(year, month)
 
+        type_str = str(row_dict.get("Type", "")).lower()
         category = str(row_dict.get("Category", "")).lower()
-        if "chargeback" in category or "chb" in category:
+        tag = type_str + " " + category
+        if "chargeback" in tag or "chb" in tag:
             table[mk]["chargebacks"] += abs(amt)
-        elif "refund" in category or amt > 0:
+        elif "refund" in tag:
+            table[mk]["refunds"] += abs(amt)
+        elif "charge" in type_str:
+            table[mk]["sales"] += abs(amt)
+        elif amt > 0:
+            # legacy heuristic: positive amount = refund when Type unknown
             table[mk]["refunds"] += abs(amt)
         else:
-            # charge: stored negative -> sales is absolute value
             table[mk]["sales"] += abs(amt)
 
     if not table:
