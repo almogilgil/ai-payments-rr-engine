@@ -4,9 +4,9 @@ Guesty 'Transaction Activity Search Results' XLSX extractor.
 Handles the spreadsheet export that the AI/PDF path cannot read:
   - data sheet identified by presence of 'Amount' + 'Type' headers
     (skips the trailing empty 'Pivot Table 1' sheet)
-  - charges stored as NEGATIVE 'Amount' (Payment Amount) -> abs() for sales
-  - refunds = positive amounts or Category containing 'refund'
-  - chargebacks = Category containing 'chargeback'/'chb'
+  - date taken from 'Created date (UTC)' (newer export) or 'Date' (legacy)
+  - transaction kind read from 'Type' (charge/refund/chargeback);
+    falls back to 'Category' and a positive-amount heuristic for legacy files
   - trailing blank columns ignored
 
 Returns the same contract as the other extractors:
@@ -36,7 +36,6 @@ def _to_float(v) -> float:
 
 def _pick_data_sheet(wb):
     for ws in wb.worksheets:
-        # read the first row as headers
         header = None
         for row in ws.iter_rows(min_row=1, max_row=1, values_only=True):
             header = [str(c).strip() if c is not None else "" for c in row]
@@ -47,7 +46,7 @@ def _pick_data_sheet(wb):
 
 
 def _row_year_month(row_dict):
-    """Derive (year, month) from Date column; fall back to Month col + Date's year."""
+    """Derive (year, month) from the date column; fall back to Month col + current year."""
     dt = None
     raw_date = row_dict.get("Created date (UTC)")
     if raw_date is None:
@@ -64,7 +63,6 @@ def _row_year_month(row_dict):
                     continue
     if dt is not None:
         return dt.year, dt.month, dt
-    # fallback: explicit Month column, year unknown -> use current year
     m = row_dict.get("Month")
     if m is not None:
         try:
@@ -82,7 +80,6 @@ def extract_guesty_xlsx(path: str) -> dict:
     if ws is None:
         raise ValueError("No Transaction Activity data sheet (Amount/Type headers) found in workbook")
 
-    # map header -> column index, ignoring blank trailing columns
     col_idx = {name: i for i, name in enumerate(header) if name}
 
     table = defaultdict(lambda: {"sales": 0.0, "refunds": 0.0, "chargebacks": 0.0})
@@ -116,7 +113,6 @@ def extract_guesty_xlsx(path: str) -> dict:
         elif "charge" in type_str:
             table[mk]["sales"] += abs(amt)
         elif amt > 0:
-            # legacy heuristic: positive amount = refund when Type unknown
             table[mk]["refunds"] += abs(amt)
         else:
             table[mk]["sales"] += abs(amt)
