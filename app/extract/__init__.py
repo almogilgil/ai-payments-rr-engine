@@ -34,11 +34,27 @@ def _is_stripe(content: bytes, filename: str) -> bool:
 
 
 def _is_stripe_disputes(content: bytes, filename: str) -> bool:
+    fn = filename.lower()
+    # Filename keyword convention (agreed): chargeback file contains chb/chargeback/dispute
+    if any(k in fn for k in ("chb", "chargeback", "dispute")):
+        return True
     try:
         text = content.decode("utf-8", errors="ignore")
-        return ("Disputed" in text or "dispute" in filename.lower()) and "Amount" in text
+        return "Disputed" in text and "Amount" in text
     except Exception:
         return False
+
+
+def _stripe_role(filename: str) -> str:
+    """Return 'sales' / 'refunds' / 'chbs' based on the agreed filename keyword."""
+    fn = filename.lower()
+    if any(k in fn for k in ("chb", "chargeback", "dispute")):
+        return "chbs"
+    if "refund" in fn:
+        return "refunds"
+    if "sale" in fn:
+        return "sales"
+    return "sales"  # default: treat unlabeled stripe file as the sales master
 
 
 def _trailing_months(ref_date: datetime, n_months: int = 3) -> list[str]:
@@ -102,20 +118,31 @@ def dispatch(statements: list[dict], test_mode: bool = False, ref_date: datetime
             source_type = "guestypay"
             # CSV extraction is deterministic: confidence 1.0
         elif stripe_payment_files:
+            # Route each stripe payment file by its agreed filename role.
+            # sales file  -> contributes sales volume (sales_paths)
+            # refunds file -> contributes refunds only (in payment_paths, not sales_paths)
             payment_paths = []
+            sales_paths = []
             for i, s in enumerate(stripe_payment_files):
-                p = os.path.join(tmpdir, f"stripe_payments_{i}.csv")
+                role = _stripe_role(s["filename"])
+                p = os.path.join(tmpdir, f"stripe_{role}_{i}.csv")
                 with open(p, "wb") as f:
                     f.write(s["content"])
                 payment_paths.append(p)
+                if role == "sales":
+                    sales_paths.append(p)
+            # If no file was explicitly named "sales", fall back to the first file.
+            if not sales_paths:
+                sales_paths = payment_paths[:1]
 
             disputes_path = None
             if stripe_dispute_files:
-                disputes_path = os.path.join(tmpdir, "stripe_disputes.csv")
+                disputes_path = os.path.join(tmpdir, "stripe_chbs.csv")
                 with open(disputes_path, "wb") as f:
                     f.write(stripe_dispute_files[0]["content"])
 
-            result = extract_stripe(payment_paths, disputes_path=disputes_path)
+            result = extract_stripe(payment_paths, disputes_path=disputes_path,
+                                    sales_paths=sales_paths)
             table = result["table"]
             chargebacks_note = result["chargebacks_note"]
             data_latest_date = result.get("latest_date")
