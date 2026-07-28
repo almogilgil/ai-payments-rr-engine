@@ -116,9 +116,12 @@ def fill_workbook(merchant: dict, months: list[dict], engine: dict,
     ws.cell(row=row, column=1, value="Highest CHB Rate")
     ws.cell(row=row, column=2, value=engine.get("_highest_chb_rate", ""))
     row += 1
+    ref_row = row
     ws.cell(row=row, column=1, value="Highest Refund Rate")
     ws.cell(row=row, column=2, value=engine.get("_highest_refund_rate", ""))
     row += 1
+    for r in range(2, 8):
+        ws.cell(row=r, column=7, value=f"=$B${ref_row}")
     ws.cell(row=row, column=1, value="Estimated CHB")
     ws.cell(row=row, column=2, value=engine["estimated_chb"])
     row += 1
