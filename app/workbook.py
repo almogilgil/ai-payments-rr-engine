@@ -173,10 +173,13 @@ def fill_workbook(merchant: dict, months: list[dict], engine: dict,
         row += 1
     # Blank rows for Projected Exposure and Recommended
     ws.cell(row=row, column=2, value="Projected Exposure (30d)").font = Font(italic=True)
-    ws.cell(row=row, column=4, value="[pending]")
+    pc = ws.cell(row=row, column=3, value="=P7")
+    pc.alignment = Alignment(horizontal="center")
     row += 1
     ws.cell(row=row, column=2, value="Recommended").font = Font(bold=True)
-
+# Remove the broken Chargeback Rate % # row (B34 label + C34 #DIV/0! formula)
+    ws["B34"].value = None
+    ws["C34"].value = None
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()
