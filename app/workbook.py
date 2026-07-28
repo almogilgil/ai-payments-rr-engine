@@ -118,7 +118,7 @@ def fill_workbook(merchant: dict, months: list[dict], engine: dict,
     vol_row = row
     ws.cell(row=row, column=1, value="Volume 90d")
     ws.cell(row=row, column=2, value=engine.get("_volume_90d", ""))
-row += 1
+    row += 1
     # Column D (Volume Last 90 Days) for all 5 scenario rows -> computed Volume 90d cell
     for r in range(2, 8):
         ws.cell(row=r, column=4, value=f"=$B${vol_row}")
