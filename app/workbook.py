@@ -122,6 +122,8 @@ def fill_workbook(merchant: dict, months: list[dict], engine: dict,
     # Column D (Volume Last 90 Days) for all 5 scenario rows -> computed Volume 90d cell
     for r in range(2, 8):
         ws.cell(row=r, column=4, value=f"=$B${vol_row}")
+    # H4 = Flat scenario planned-RR amount, from the FLAT RR TYPES table (based on B19 volume)
+    ws["H4"] = flat_amount
     chb_row = row
     ws.cell(row=row, column=1, value="Highest CHB Rate")
     ws.cell(row=row, column=2, value=engine.get("_highest_chb_rate", ""))
