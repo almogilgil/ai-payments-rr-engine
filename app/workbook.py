@@ -109,7 +109,8 @@ def fill_workbook(merchant: dict, months: list[dict], engine: dict,
     grid_cols = ["C", "D", "E", "F", "G"]
     for i, m in enumerate(months[:5]):
         col = grid_cols[i]
-        ws[f"{col}24"] = m["label"]          # Month header
+        from datetime import datetime as _dt
+        ws[f"{col}24"] = _dt.strptime(m["label"], "%Y-%m").strftime("%b %Y")  # Month header e.g. "Apr 2026"          # Month header
         ws[f"{col}25"] = m["sales"]          # Sales Volume $
         ws[f"{col}26"] = m["chargebacks"]    # Chargeback Volume $
         ws[f"{col}29"] = m["refunds"]        # Refund volume $
