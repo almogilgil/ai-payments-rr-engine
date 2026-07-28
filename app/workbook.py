@@ -187,6 +187,23 @@ def fill_workbook(merchant: dict, months: list[dict], engine: dict,
 # Remove the broken Chargeback Rate % # row (B34 label + C34 #DIV/0! formula)
     ws["B34"].value = None
     ws["C34"].value = None
+ # Color the Exposure$ column (K13:K18): green if >=0, red if negative.
+    _red = Font(color="FFFF0000")
+    _green = Font(color="FF008000")
+    exp = engine["EXP"]
+    k_values = {
+        "K13": exp["10%"],
+        "K14": exp["5%"],
+        "K15": exp["Flat"],
+        "K16": exp["Waiver_incl"],
+        "K17": exp["Waiver_noCHB"],
+    }
+    _v = engine.get("_volume_90d", 0) or 0
+    _cr = engine.get("_highest_chb_rate", 0) or 0
+    _rr = engine.get("_highest_refund_rate", 0) or 0
+    k_values["K18"] = -(((_v * _cr) / 3) + (_v * _rr)) / 3
+    for cell, val in k_values.items():
+        ws[cell].font = _green if val >= 0 else _red
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()
