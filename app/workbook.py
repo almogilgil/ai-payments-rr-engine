@@ -106,9 +106,13 @@ def fill_workbook(merchant: dict, months: list[dict], engine: dict,
     row += 1
 
     # --- Summary ---
+    vol_row = row
     ws.cell(row=row, column=1, value="Volume 90d")
     ws.cell(row=row, column=2, value=engine.get("_volume_90d", ""))
     row += 1
+    # Column D (Volume Last 90 Days) for all 5 scenario rows -> computed Volume 90d cell
+    for r in range(2, 8):
+        ws.cell(row=r, column=4, value=f"=$B${vol_row}")
     ws.cell(row=row, column=1, value="Highest CHB Rate")
     ws.cell(row=row, column=2, value=engine.get("_highest_chb_rate", ""))
     row += 1
