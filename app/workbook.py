@@ -161,11 +161,15 @@ def fill_workbook(merchant: dict, months: list[dict], engine: dict,
         c1 = ws.cell(row=row, column=1, value=key)
         c1.fill = fill
         ws.cell(row=row, column=2, value=label)
+        _align = Alignment(horizontal="center")
         if days:
-            ws.cell(row=row, column=3, value=days)
-            ws.cell(row=row, column=4, value=_money_str(exposure))
+            dc = ws.cell(row=row, column=3, value=days)
+            dc.alignment = _align
+            ec = ws.cell(row=row, column=4, value=_money_str(exposure))
+            ec.alignment = _align
         else:
-            ws.cell(row=row, column=3, value=_money_str(exposure))
+            ec = ws.cell(row=row, column=3, value=_money_str(exposure))
+            ec.alignment = _align
         row += 1
     # Blank rows for Projected Exposure and Recommended
     ws.cell(row=row, column=2, value="Projected Exposure (30d)").font = Font(italic=True)
