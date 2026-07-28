@@ -38,7 +38,7 @@ def rr_engine(volume_90d: float, highest_chb_rate: float,
         return volume_90d * rate * 3 - cnl
 
     exp_waiver_no_chb = (
-        0.0 if refund_rate < 0.13 else (0.0 - estimated_refund)
+        0.0 if refund_rate < 0.13 else (0.0 - cnl)
     )
 
     return {
