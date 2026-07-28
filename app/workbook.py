@@ -104,7 +104,15 @@ def fill_workbook(merchant: dict, months: list[dict], engine: dict,
         row += 1
 
     row += 1
-
+# --- Fill the template's embedded month table (rows 24-29, cols C/D/E) ---
+    # Overwrites the stale Dec/Jan/Feb headers with the real months and figures.
+    grid_cols = ["C", "D", "E", "F", "G"]
+    for i, m in enumerate(months[:5]):
+        col = grid_cols[i]
+        ws[f"{col}24"] = m["label"]          # Month header
+        ws[f"{col}25"] = m["sales"]          # Sales Volume $
+        ws[f"{col}26"] = m["chargebacks"]    # Chargeback Volume $
+        ws[f"{col}29"] = m["refunds"]        # Refund volume $
     # --- Summary ---
     vol_row = row
     ws.cell(row=row, column=1, value="Volume 90d")
