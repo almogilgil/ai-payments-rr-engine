@@ -12,6 +12,8 @@ FLAT_AMOUNT_TABLE = [
 
 
 def lookup_flat_amount(volume_90d: float) -> float:
+    if volume_90d < 75_000:
+        return 10_000  # below smallest tier: use lowest flat amount
     for lo, hi, flat in FLAT_AMOUNT_TABLE:
         if lo <= volume_90d < hi:
             return flat
