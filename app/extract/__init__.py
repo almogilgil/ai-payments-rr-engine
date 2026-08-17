@@ -40,7 +40,10 @@ def _is_stripe_disputes(content: bytes, filename: str) -> bool:
         return True
     try:
         text = content.decode("utf-8", errors="ignore")
-        return "Disputed" in text and "Amount" in text
+        # A payments export also has empty "Disputed Amount"/"Dispute ..." column
+        # HEADERS, so the word "Disputed" alone is not enough. A real disputes
+        # export is keyed by dispute ids (dp_) and has no charge rows (ch_).
+        return "dp_" in text and "ch_" not in text
     except Exception:
         return False
 
