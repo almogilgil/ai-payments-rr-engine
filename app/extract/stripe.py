@@ -52,9 +52,10 @@ def extract_stripe(payment_paths: list[str], disputes_path: str = None,
                     sales[_month_key(created)] += _to_float(row.get("Amount"))
 
                 # Refunds bucketed by original charge's CREATED month (not refunded date)
-                status = (row.get("Status") or "").strip().lower()
+                # All statuses included (a paid-then-refunded charge still shows
+                # Status="Paid"); the Amount Refunded column is the source of truth.
                 refunded_amt = _to_float(row.get("Amount Refunded"))
-                if refunded_amt > 0 and status != "paid" and created is not None:
+                if refunded_amt > 0 and created is not None:
                     refunds[_month_key(created)] += refunded_amt
 
     chargebacks = None
