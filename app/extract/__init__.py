@@ -176,6 +176,13 @@ def dispatch(statements: list[dict], test_mode: bool = False, ref_date: datetime
     else:
         # Use data's latest date as ref if no explicit ref_date provided
         effective_ref = ref_date or data_latest_date or datetime.utcnow()
+        # Business rule (confirmed with ops, Option A): drop the PARTIAL current
+        # month and use the 3 most recent COMPLETE months. "Partial" = the calendar
+        # month we're running in; a month that's already over can't change anymore.
+        now = datetime.utcnow()
+        if (effective_ref.year, effective_ref.month) == (now.year, now.month):
+            first_of_month = effective_ref.replace(day=1)
+            effective_ref = first_of_month - timedelta(days=1)  # last day of prev month
         window_months = _trailing_months(effective_ref, 3)
 
     # Filter table to window months only

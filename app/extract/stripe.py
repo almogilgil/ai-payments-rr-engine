@@ -37,7 +37,7 @@ def extract_stripe(payment_paths: list[str], disputes_path: str = None,
     seen_ids = set()
     sales = defaultdict(float)
     refunds = defaultdict(float)
-
+    inline_chb = defaultdict(float)
     for path in payment_paths:
         contributes_sales = path in sales_set
         with open(path, "r", encoding="utf-8") as f:
@@ -57,7 +57,11 @@ def extract_stripe(payment_paths: list[str], disputes_path: str = None,
                 refunded_amt = _to_float(row.get("Amount Refunded"))
                 if refunded_amt > 0 and created is not None:
                     refunds[_month_key(created)] += refunded_amt
-
+                # Chargebacks embedded in the payments export as a "Disputed
+                # Amount" column (combined Stripe export), by charge CREATED month.
+                disputed_amt = _to_float(row.get("Disputed Amount"))
+                if disputed_amt > 0 and created is not None:
+                    inline_chb[_month_key(created)] += disputed_amt
     chargebacks = None
     chb_note = "requires Stripe Disputes export (chargebacks set to 0)"
 
@@ -72,6 +76,9 @@ def extract_stripe(payment_paths: list[str], disputes_path: str = None,
                 if dt is not None:
                     chargebacks[_month_key(dt)] += abs(amt)
         chb_note = "from Stripe Disputes export"
+    elif inline_chb:
+        chargebacks = inline_chb
+        chb_note = "from Disputed Amount column in payments export"
 
     months = sorted(set(sales) | set(refunds) |
                     (set(chargebacks) if chargebacks else set()))
