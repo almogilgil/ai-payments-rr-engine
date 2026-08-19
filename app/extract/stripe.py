@@ -29,7 +29,8 @@ def _to_float(s) -> float:
 
 
 def extract_stripe(payment_paths: list[str], disputes_path: str = None,
-                   sales_paths: list[str] = None) -> dict:
+                   sales_paths: list[str] = None,
+                   combined_mode: bool = False) -> dict:
     if sales_paths is None:
         sales_paths = payment_paths[:1]
     sales_set = set(sales_paths)
@@ -48,7 +49,12 @@ def extract_stripe(payment_paths: list[str], disputes_path: str = None,
                 seen_ids.add(cid)
 
                 created = _parse_date(row.get("Created date (UTC)", ""))
-                if contributes_sales and created is not None:
+                if combined_mode:
+                    captured = (row.get("Captured") or "").strip().lower() == "true"
+                    include_sale = contributes_sales and created is not None and captured
+                else:
+                    include_sale = contributes_sales and created is not None
+                if include_sale:
                     sales[_month_key(created)] += _to_float(row.get("Amount"))
 
                 # Refunds bucketed by original charge's CREATED month (not refunded date)
@@ -59,9 +65,10 @@ def extract_stripe(payment_paths: list[str], disputes_path: str = None,
                     refunds[_month_key(created)] += refunded_amt
                 # Chargebacks embedded in the payments export as a "Disputed
                 # Amount" column (combined Stripe export), by charge CREATED month.
-                disputed_amt = _to_float(row.get("Disputed Amount"))
-                if disputed_amt > 0 and created is not None:
-                    inline_chb[_month_key(created)] += disputed_amt
+                if combined_mode:
+                    disputed_amt = _to_float(row.get("Disputed Amount"))
+                    if disputed_amt > 0 and created is not None:
+                        inline_chb[_month_key(created)] += disputed_amt
     chargebacks = None
     chb_note = "requires Stripe Disputes export (chargebacks set to 0)"
 

@@ -144,8 +144,15 @@ def dispatch(statements: list[dict], test_mode: bool = False, ref_date: datetime
                 with open(disputes_path, "wb") as f:
                     f.write(stripe_dispute_files[0]["content"])
 
+            # "combined" in a filename => single combined Stripe export:
+            # sales = captured charges, refunds = Amount Refunded column,
+            # chargebacks = Disputed Amount column. Otherwise legacy behavior.
+            combined_mode = any(
+                "combined" in x["filename"].lower() for x in stripe_payment_files
+            )
             result = extract_stripe(payment_paths, disputes_path=disputes_path,
-                                    sales_paths=sales_paths)
+                                    sales_paths=sales_paths,
+                                    combined_mode=combined_mode)
             table = result["table"]
             chargebacks_note = result["chargebacks_note"]
             data_latest_date = result.get("latest_date")
